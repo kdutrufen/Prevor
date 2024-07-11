@@ -12,35 +12,32 @@ knitr::opts_chunk$set(echo = TRUE)
 ## R Markdown
 
 ```{r}
-library(biomaRt)
-library(CEMiTool, warn.conflicts = F)
-library(clusterProfiler, warn.conflicts = F)
-# library(colorfulVennPlot, warn.conflicts = F)
-library(colorspace, warn.conflicts = F)
-library(cowplot, warn.conflicts = F)
-library(data.table, warn.conflicts = F)
-library(DESeq2, warn.conflicts = F)
-library(EDASeq, warn.conflicts = F)
-library(edgeR, warn.conflicts = F)
-# library(GeneBook, warn.conflicts = F)
-library(ggeasy, warn.conflicts = F)
-library(ggrepel, warn.conflicts = F)
-library(gplots, warn.conflicts = F)
-library(limma, warn.conflicts = F)
-library(matrixStats, warn.conflicts = F)
-library(patchwork, warn.conflicts = F)
-library(pathview, warn.conflicts = F)
-library(RColorBrewer, warn.conflicts = F)
-library(ReactomePA, warn.conflicts = F) 
-library(readr, warn.conflicts = F)
-library(RUVSeq, warn.conflicts = F)
-library(scales, warn.conflicts = F)
-library(STRINGdb, warn.conflicts = F)
-library(stringr, warn.conflicts = F)
-library(sva, warn.conflicts = F)
-library(tidyverse, warn.conflicts = F)
-library(VennDiagram, warn.conflicts = F)
-library(vroom, warn.conflicts = F)
+library(biomaRt)          # BioMart gene annotations
+library(clusterProfiler)  # Gene set enrichment analysis
+library(colorspace)       # Color manipulation
+library(cowplot)          # Combining plots
+library(data.table)       # Data manipulation
+library(DESeq2)           # Differential expression analysis
+library(EDASeq)           # Exploratory data analysis
+library(edgeR)            # Differential expression analysis
+library(ggeasy)           # Plot customization
+library(ggrepel)          # Text labels on plots
+library(gplots)           # General plotting functions
+library(limma)            # Linear models for microarray data
+library(matrixStats)      # Matrix operations and statistics
+library(patchwork)        # Combining multiple plots into one layout
+library(pathview)         # Pathway visualization and mapping
+library(RColorBrewer)     # Color palettes and utilities
+library(ReactomePA)       # Reactome pathway analysis
+library(readr)            # Data import and parsing
+library(RUVSeq)           # RNA-Seq data analysis, including batch effect removal
+library(scales)           # Scaling functions for visualizations
+library(STRINGdb)         # Protein-protein interaction network analysis
+library(stringr)          # String manipulation and regular expressions
+library(sva)              # Surrogate variable analysis (SVA) for batch effects
+library(tidyverse)        # Core tidyverse packages (dplyr, ggplot2, etc.)
+library(VennDiagram)      # Venn diagram plotting
+library(vroom)            # Fast delimited file reading
 
 source("~/Dropbox/kdutrufenr/kdutrufenr.R")
 
