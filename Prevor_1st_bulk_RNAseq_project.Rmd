@@ -1,0 +1,881 @@
+---
+title: "Prevor_1st_bulk_RNAseq_project"
+author: "Carlos Eduardo Madureira Trufen"
+date: "2024-07-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(biomaRt)
+library(CEMiTool, warn.conflicts = F)
+library(clusterProfiler, warn.conflicts = F)
+# library(colorfulVennPlot, warn.conflicts = F)
+library(colorspace, warn.conflicts = F)
+library(cowplot, warn.conflicts = F)
+library(data.table, warn.conflicts = F)
+library(DESeq2, warn.conflicts = F)
+library(EDASeq, warn.conflicts = F)
+library(edgeR, warn.conflicts = F)
+# library(GeneBook, warn.conflicts = F)
+library(ggeasy, warn.conflicts = F)
+library(ggrepel, warn.conflicts = F)
+library(gplots, warn.conflicts = F)
+library(limma, warn.conflicts = F)
+library(matrixStats, warn.conflicts = F)
+library(patchwork, warn.conflicts = F)
+library(pathview, warn.conflicts = F)
+library(RColorBrewer, warn.conflicts = F)
+library(ReactomePA, warn.conflicts = F) 
+library(readr, warn.conflicts = F)
+library(RUVSeq, warn.conflicts = F)
+library(scales, warn.conflicts = F)
+library(STRINGdb, warn.conflicts = F)
+library(stringr, warn.conflicts = F)
+library(sva, warn.conflicts = F)
+library(tidyverse, warn.conflicts = F)
+library(VennDiagram, warn.conflicts = F)
+library(vroom, warn.conflicts = F)
+
+source("~/Dropbox/kdutrufenr/kdutrufenr.R")
+
+path_to_data <- "~/Documents/Prevor/bulk_RNAseq/1st_project/"
+```
+
+# Databases
+```{r}
+path_to_pathways <- "~/Dropbox/GMT/"
+
+WikiPathways_2019_Human <- path_to_pathways %>% paste0("WikiPathways_2019_Human.txt") # WikiPathways_2019_Human gene sets
+WikiPathways_2019_Mouse <- path_to_pathways %>% paste0("WikiPathways_2019_Mouse.txt") # WikiPathways_2019_Mouse gene sets
+KEGG_2019_Human <- path_to_pathways %>% paste0("KEGG_2019_Human.txt") # KEGG_2019_Human gene sets
+KEGG_2019_Mouse <- path_to_pathways %>% paste0("KEGG_2019_Mouse.txt") # KEGG_2019_Mouse gene sets
+LINCS_L1000_Chem_Pert_down <- path_to_pathways %>% paste0("LINCS_L1000_Chem_Pert_down.txt") # LINCS_L1000_Chem_Pert_down gene sets
+LINCS_L1000_Chem_Pert_up <- path_to_pathways %>% paste0("LINCS_L1000_Chem_Pert_up.txt") # LINCS_L1000_Chem_Pert_up gene sets
+Reactome_2016 <- path_to_pathways %>% paste0("Reactome_2016.txt") # Reactome_2016 gene sets
+GO_Molecular_Function_2018 <- path_to_pathways %>% paste0("GO_Molecular_Function_2018.txt") # GO_Molecular_Function_2018 gene sets
+GO_Cellular_Component_2018 <- path_to_pathways %>% paste0("GO_Cellular_Component_2018.txt") # GO_Cellular_Component_2018 gene sets
+GO_Biological_Process_2018 <- path_to_pathways %>% paste0("GO_Biological_Process_2018.txt") # GO_Biological_Process_2018 gene sets
+GO_Molecular_Function_2021 <- path_to_pathways %>% paste0("GO_Molecular_Function_2021.txt") # GO_Molecular_Function_2021 gene sets
+GO_Cellular_Component_2021 <- path_to_pathways %>% paste0("GO_Cellular_Component_2021.txt") # GO_Cellular_Component_2021 gene sets
+GO_Biological_Process_2021 <- path_to_pathways %>% paste0("GO_Biological_Process_2021.txt") # GO_Biological_Process_2021 gene sets
+GO_Molecular_Function_2023 <- path_to_pathways %>% paste0("GO_Molecular_Function_2023.txt") # GO_Molecular_Function_2023 gene sets
+GO_Cellular_Component_2023 <- path_to_pathways %>% paste0("GO_Cellular_Component_2023.txt") # GO_Cellular_Component_2023 gene sets
+GO_Biological_Process_2023 <- path_to_pathways %>% paste0("GO_Biological_Process_2023.txt") # GO_Biological_Process_2023 gene sets
+BioPlanet_2019 <- path_to_pathways %>% paste0("BioPlanet_2019.txt") # BioPlanet_2019 gene sets
+
+C6_Oncogenic_Signatures <- path_to_pathways %>% paste0("c6.all.v2023.1.Hs.symbols.gmt")
+C7_immunologic_signatures <- path_to_pathways %>% paste0("c7.all.v2023.2.Hs.symbols.gmt")
+C8_cell_type_signatures <- path_to_pathways %>% paste0("c8.all.v2023.1.Hs.symbols.gmt")
+MSigDB_hallmark_gene_sets <- path_to_pathways %>% paste0("h.all.v2023.2.Hs.symbols.gmt")
+```
+
+```{r}
+mus_musculus_genomic_gff <- vroom::vroom("~/Documents/mouse_genome/mus_musculus_genomic.gtf", delim = "\t", escape_double = FALSE, col_names = FALSE, trim_ws = TRUE, skip = 5)
+```
+
+
+# Load tables
+```{r}
+df_1 <- read_delim(paste0(path_to_data, "mouse_set_1_hisat2_featurecounts_primary_table.txt"), skip = 1,  delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+df_1 <- df_1 %>% purrr::set_names(
+  "Geneid", "Chr", "Start", "End", "Strand", "Length",
+  "FT8_female_FVB_rep1", "FT1_male_FVB_rep1", "PC_female_FVB_rep2", "FT1_male_SJL_rep2", "PC_female_FVB_Buffer_rep2",
+  "PC_male_SJL_Buffer_rep3", "FT7_female_SJL_rep2", "PC_male_SJL_IL1b_rep4", "FT7_female_SJL_rep3", "PC_male_SJL_IL1b_rep6")
+
+df_2 <- read_delim(paste0(path_to_data, "mouse_set_2_hisat2_featurecounts_primary_table.txt"), skip = 1,  delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+df_2 <- df_2 %>% purrr::set_names(
+  "Geneid", "Chr", "Start", "End", "Strand", "Length",
+  "FT2_male_FVB_rep1", "FT5_female_FVB_rep1", "PC_male_FVB_IL1b_rep6", "FT3_male_FVB_rep1", "PC_female_SJL_Buffer_rep2",
+  "PC_male_SJL_Buffer_rep1", "FT3_male_SJL_rep2", "PC_female_SJL_Buffer_rep3", "FT4_male_SJL_rep1", "PC_male_FVB_Buffer_rep4")
+
+df_3 <- read_delim(paste0(path_to_data, "mouse_set_3_hisat2_featurecounts_primary_table.txt"), skip = 1,  delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+df_3 <- df_3 %>% purrr::set_names(
+  "Geneid", "Chr", "Start", "End", "Strand", "Length",
+  "FT5_female_SJL_rep2", "FT6_female_FVB_rep2", "PC_male_SJL_Buffer_rep2")
+
+df_4 <- read_delim(paste0(path_to_data, "mouse_set_4_hisat2_featurecounts_primary_table.txt"), skip = 1,  delim = "\t", escape_double = FALSE, trim_ws = TRUE)
+
+df_4 <- df_4 %>% purrr::set_names(
+  "Geneid", "Chr", "Start", "End", "Strand", "Length",
+  "PC_female_SJL_IL1b_rep6", "PC_female_SJL_IL1b_rep4", "PC_female_SJL_IL1b_rep5", "PC_male_SJL_IL1b_rep5")
+
+read_count_df <- df_1 %>% 
+  full_join(df_2) %>% 
+  full_join(df_3) %>% 
+  full_join(df_4) %>% 
+  dplyr::select(-c("Chr", "Start", "End", "Strand", "Length")) %>% 
+  column_to_rownames(var = "Geneid")
+
+read_count_df <- read_count_df %>% dplyr::select(contains(match = "PC"), everything())
+```
+
+# mouse gene dictionary
+# Mouse Id dictionaries
+```{r}
+# ensembl_mart <- useEnsembl(biomart = "genes", dataset = "mmusculus_gene_ensembl")
+# 
+# mouse_gene_id_dict <- getBM(
+#   attributes = c("ensembl_gene_id", "entrezgene_id", "mgi_symbol", "description", "gene_biotype", "chromosome_name", "start_position", "end_position", "strand"), 
+#   filters = "mgi_symbol", 
+#   values = rownames(read_count_df), 
+#   mart = ensembl_mart
+#   )
+# 
+# mouse_gene_id_dict <- mouse_gene_id_dict %>% 
+#   mutate(strand = strand %>% str_replace_all(pattern = "-1", replacement = "-")) %>% 
+#   mutate(strand = strand %>% str_replace_all(pattern = "1", replacement = "+"))
+# 
+# mouse_gene_id_dict %>% vroom::vroom_write(paste0(path_to_data, "mouse_gene_id_dict.tsv"), delim = "\t", col_names = TRUE)
+
+mouse_gene_id_dict <- vroom::vroom(paste0(path_to_data, "mouse_gene_id_dict.tsv"), delim = "\t", col_names = TRUE)
+```
+
+# Set experimental design
+```{r}
+# FT = flow through
+# PC = oligodendrocytes
+
+design_df <- data.frame(
+  col_name = colnames(read_count_df), 
+  oligo_flow_through = dplyr::if_else(condition = names(read_count_df) %>% str_detect(pattern = "PC_"), true = "oligo", false = "flow_through"),
+  sex = dplyr::if_else(condition = names(read_count_df) %>% str_detect(pattern = "female"), true = "female", false = "male"),
+  mouse_strain = dplyr::if_else(condition = names(read_count_df) %>% str_detect(pattern = "FVB"), true = "FVB", false = "SJL"),
+  treatment = dplyr::if_else(condition = names(read_count_df) %>% str_detect(pattern = "IL1b"), true = "IL1b", false = "Buffer")
+)
+
+design_df <- design_df %>% 
+  unite("condition", oligo_flow_through, sex, mouse_strain, treatment, sep = "_", remove = F)
+
+design_df <- design_df %>%
+  group_by(condition) %>%
+  mutate(rep = row_number()) %>%
+  arrange(condition, rep) %>% 
+  ungroup() 
+
+design_df <- design_df %>% 
+  unite("sample", condition, rep, sep = "_rep", remove = F)
+
+design_df %>% 
+  dplyr::filter(oligo_flow_through == "oligo") %>% 
+  # group_by(sex, mouse_strain, treatment) %>% 
+  group_by(mouse_strain, treatment) %>%
+  tally()
+
+read_count_df <- read_count_df %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "col_name") %>% 
+  full_join(design_df) %>% 
+  dplyr::select(-c(col_name, condition, oligo_flow_through, sex, mouse_strain, treatment, rep)) %>% 
+  column_to_rownames(var = "sample") %>% 
+  t() %>% 
+  as.data.frame()
+
+read_count_df <- read_count_df %>% 
+  rownames_to_column(var = "mgi_symbol") %>% 
+  arrange(mgi_symbol) %>% 
+  column_to_rownames(var = "mgi_symbol")
+
+read_count_df <- read_count_df %>% 
+  dplyr::select(design_df$sample)
+
+group <- design_df$condition %>% as.factor()
+design <- model.matrix(~ 0 + group)
+colnames(design) <- group %>% levels()
+rownames(design) <- read_count_df %>% colnames()
+```
+
+# Read count bar plot
+```{r}
+library(Polychrome)
+library(pals)
+
+par(mar = c(6, 6, 3, 3))
+sum_data <- data.frame(counts = c(mean(colSums(read_count_df)), (apply(read_count_df, 2, sum))))
+sum_data$samples <- c("Average", colnames(read_count_df))
+
+# col_cell <- brewer.pal(9, "Dark2")[design_df$condition %>% as.factor()]
+col_cell <- unname(polychrome())[design_df$condition %>% as.factor()]
+
+read_count_barplot <- sum_data %>% 
+  ggplot(aes(x = samples, y = counts, fill = samples)) +
+  geom_bar(colour = "black", stat = "identity", fill = c("yellow", col_cell)) +
+  # geom_bar(colour = "black", stat = "identity") +
+  geom_hline(mapping = NULL, data = NULL, yintercept = 8e+06, na.rm = FALSE, show.legend = NA, colour = "black") +
+  theme_bw() +
+  labs(x = "Samples", y = "Read count") +
+  ggeasy::easy_x_axis_labels_size(size = 10) +
+  ggeasy::easy_y_axis_labels_size(size = 10) +
+  ggeasy::easy_x_axis_title_size(size = 20) +
+  ggeasy::easy_y_axis_title_size(size = 20) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Split oligo vs flow through datasets and experimental designs
+```{r}
+oligo_read_count_df <- read_count_df %>% 
+  dplyr::select(contains("oligo")) %>% 
+  dplyr::select(-oligo_male_SJL_IL1b_rep3) %>% # Remove the sample with one replicate 
+  dplyr::select(-oligo_male_FVB_IL1b_rep1)     # Remove the sample from a different batch
+
+oligo_read_count_df <- oligo_read_count_df %>% 
+  purrr::set_names(names(.) %>% str_remove(pattern = "oligo_"))
+
+flow_through_read_count_df <- read_count_df %>% 
+  dplyr::select(contains("flow_through"))
+
+flow_through_read_count_df <- flow_through_read_count_df %>% 
+  purrr::set_names("FVB_female_rep1", "FVB_female_rep2", "FVB_female_rep3", "SJL_female_rep1", "SJL_female_rep2", "SJL_female_rep3", "FVB_male_rep1", "FVB_male_rep2", "FVB_male_rep3", "SJL_male_rep1", "SJL_male_rep2", "SJL_male_rep3")
+
+
+
+oligo_design_df <- design_df %>% 
+  dplyr::filter(oligo_flow_through == "oligo") %>% 
+  dplyr::filter(!sample %in% c("oligo_male_SJL_IL1b_rep3", "oligo_male_FVB_IL1b_rep1")) %>% 
+  unite("condition", mouse_strain, treatment, sep = "_", remove = F) 
+
+oligo_group <- oligo_design_df$condition %>% as.factor()
+oligo_design <- model.matrix(~ 0 + oligo_group)
+colnames(oligo_design) <- oligo_group %>% levels()
+rownames(oligo_design) <- oligo_read_count_df %>% colnames()
+
+flow_through_design_df <- design_df %>% 
+  dplyr::filter(oligo_flow_through == "flow_through") %>% 
+  mutate(replicate = names(flow_through_read_count_df) %>% str_extract(pattern = "rep.*") %>% str_remove(pattern = "rep")) %>% 
+  unite("condition", mouse_strain:sex, sep = "_", remove = F) 
+
+flow_through_group <- flow_through_design_df$condition %>% as.factor()
+flow_through_design <- model.matrix(~ 0 + flow_through_group)
+colnames(flow_through_design) <- flow_through_group %>% levels()
+rownames(flow_through_design) <- flow_through_read_count_df %>% colnames()
+```
+
+# Mouse - Filter genes 
+# Need a CPM greater than 1 in 4 or more samples to keep
+```{r }
+oligo_dge_list <- oligo_read_count_df %>% DGEList(lib.size = colSums(oligo_read_count_df), group = oligo_group)
+oligo_keep <- rowSums(oligo_dge_list %>% edgeR::cpm() > 1) >= 3
+oligo_filtered <- oligo_dge_list[oligo_keep, ]
+oligo_keep %>% summary()
+oligo_filtered %>% dim()
+
+oligo_filtered_count_data <- oligo_filtered$counts
+
+flow_through_dge_list <- flow_through_read_count_df %>% DGEList(lib.size = colSums(flow_through_read_count_df), group = flow_through_group)
+flow_through_keep <- rowSums(flow_through_dge_list %>% edgeR::cpm() > 1) >= 3
+flow_through_filtered <- flow_through_dge_list[flow_through_keep, ]
+flow_through_keep %>% summary()
+flow_through_filtered %>% dim()
+
+flow_through_filtered_count_data <- flow_through_filtered$counts
+```
+
+# Batch effect removal
+# Least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
+```{r }
+oligo_contr_matrix <- makeContrasts(
+  con1 = FVB_Buffer - SJL_Buffer,
+  con2 = SJL_IL1b - SJL_Buffer,
+  levels = c("SJL_Buffer",
+             "FVB_Buffer",
+             "SJL_IL1b"
+             )
+)
+
+oligo_fit <- oligo_filtered_count_data %>%
+  DGEList(lib.size = colSums(oligo_filtered_count_data), group = oligo_group) %>%
+  calcNormFactors(method = "TMM") %>%
+  estimateDisp(design = oligo_design, tagwise = TRUE, robust = TRUE) %>%
+  glmFit(oligo_design)
+
+oligo_lrt <- oligo_fit %>% glmLRT(contrast = oligo_contr_matrix)
+
+# oligo_lrt <- oligo_fit %>% glmLRT(coef = 1:3)
+
+oligo_top <- topTags(oligo_lrt, n = nrow(oligo_dge_list))$table
+
+# Here, we consider all but the top 500 genes as ranked by edgeR p-values
+oligo_empirical <- rownames(oligo_filtered_count_data)[which(!(rownames(oligo_filtered_count_data) %in% rownames(oligo_top)[1:500]))]
+
+flow_through_contr_matrix <- makeContrasts(
+  con1 = FVB_male + FVB_female - SJL_male - SJL_female,
+  con2 = FVB_male - SJL_male,
+  con3 = FVB_female - SJL_female,
+  con4 = FVB_male + SJL_male - FVB_female - SJL_female,
+  con5 = FVB_male - FVB_female,
+  con6 = SJL_male - SJL_female,
+  levels = c("FVB_male",
+             "SJL_male",
+             "FVB_female",
+             "SJL_female"
+             )
+)
+
+flow_through_fit <- flow_through_filtered_count_data %>%
+  DGEList(lib.size = colSums(flow_through_filtered_count_data), group = flow_through_group) %>%
+  calcNormFactors(method = "TMM") %>%
+  estimateDisp(design = flow_through_design, tagwise = TRUE, robust = TRUE) %>%
+  glmFit(flow_through_design)
+
+flow_through_lrt <- flow_through_fit %>% glmLRT(contrast = flow_through_contr_matrix)
+
+# flow_through_lrt <- flow_through_fit %>% glmLRT(coef = 1:4)
+
+flow_through_top <- topTags(flow_through_lrt, n = nrow(flow_through_dge_list))$table
+
+# Here, we consider all but the top 2000 genes as ranked by edgeR p-values
+flow_through_empirical <- rownames(flow_through_filtered_count_data)[which(!(rownames(flow_through_filtered_count_data) %in% rownames(flow_through_top)[1:500]))]
+```
+
+# The RUVg function  returns  two  pieces  of  information:
+# the estimated factors of unwanted variation nd the normalized counts obtained by regressing the original counts on the unwanted factors
+# The normalized values are stored in the normalizedCounts slot
+```{r }
+oligo_unwanted_variation <- num.sv(dat = oligo_filtered_count_data, mod = oligo_design, method = "leek")
+
+oligo_set2 <- oligo_fit$counts %>%
+  as.matrix() %>%
+  RUVg(oligo_empirical, k = oligo_unwanted_variation)
+
+oligo_set2 <- oligo_fit$counts %>%
+  as.matrix() %>%
+  RUVg(oligo_empirical, k = 1)
+
+flow_through_unwanted_variation <- num.sv(dat = flow_through_filtered_count_data, mod = flow_through_design, method = "leek")
+
+flow_through_set2 <- flow_through_fit$counts %>%
+  as.matrix() %>%
+  RUVg(flow_through_empirical, k = flow_through_unwanted_variation)
+
+flow_through_set2 <- flow_through_fit$counts %>%
+  as.matrix() %>%
+  RUVg(flow_through_empirical, k = 1)
+```
+
+# PlotRLE
+# plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset
+# plotRLE can also be used to visualize the presence of unwanted batch effects in the data
+```{r, fig.width = 15, fig.height=6, dpi = 900}
+col_cell <- unname(polychrome())[oligo_design_df$condition %>% as.factor()]
+
+par(mfrow = c(1, 2), mar = c(8.1, 4.1, 4.1, 2.1))
+oligo_filtered_count_data %>% 
+  as.matrix() %>%
+  EDASeq::plotRLE(outline = FALSE, ylim = c(-2.5, 2.5), col = col_cell, main = "Samples with \n unwanted variation", cex.main = 2, las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
+mtext(side = 1, text = "Samples", line = 7, cex = 2)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5, cex = 2)
+
+oligo_set2$normalizedCounts %>%
+  as.matrix() %>%
+  EDASeq::plotRLE(outline = FALSE, ylim = c(-2.5, 2.5), col = col_cell, main = "Samples without \n unwanted variation", cex.main = 2, las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0)
+legend("topright", inset = c(0.0, 0), legend = group %>% levels(), col = col_cell %>% unique(), ncol = 2, cex = 0.8, border = "black", fill = col_cell %>% unique())
+mtext(side = 1, text = "Samples", line = 7, cex = 2)
+```
+
+```{r, fig.width = 15, fig.height=6, dpi = 900}
+col_cell <- unname(polychrome())[flow_through_design_df$condition %>% as.factor()]
+
+par(mfrow = c(1, 2), mar = c(8.1, 4.1, 4.1, 2.1))
+flow_through_filtered_count_data %>% 
+  as.matrix() %>%
+  EDASeq::plotRLE(outline = FALSE, ylim = c(-2.5, 2.5), col = col_cell, main = "Samples with \n unwanted variation", cex.main = 2, las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
+mtext(side = 1, text = "Samples", line = 7, cex = 2)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5, cex = 2)
+
+flow_through_set2$normalizedCounts %>%
+  EDASeq::plotRLE(outline = FALSE, ylim = c(-2.5, 2.5), col = col_cell, main = "Samples without \n unwanted variation", cex.main = 2, las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0)
+legend("topright", inset = c(0.0, 0), legend = group %>% levels(), col = col_cell %>% unique(), ncol = 2, cex = 0.8, border = "black", fill = col_cell %>% unique())
+mtext(side = 1, text = "Samples", line = 7, cex = 2)
+```
+
+# PCAs 
+```{r}
+oligo_pca_res <- oligo_filtered_count_data %>% t() %>% prcomp(scale. = TRUE) 
+
+oligo_pca_res$x %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "sample") %>% 
+  mutate(condition = oligo_design_df$condition) %>%
+  ggplot(aes(x = PC1, y = PC2, color = oligo_group)) +
+  geom_point() +
+  scale_colour_manual(values = unname(polychrome())) +
+  theme_bw() +
+  ggeasy::easy_all_text_size(size = 20) +
+  guides(color = guide_legend(override.aes = list(size = 5), ncol = 1)) 
+
+oligo_pca_ruv <- oligo_set2$normalizedCounts %>% t() %>% prcomp(scale. = TRUE) 
+
+oligo_pca_ruv$x %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "sample") %>% 
+  mutate(condition = oligo_design_df$condition) %>%
+  ggplot(aes(x = PC1, y = PC2, color = oligo_group)) +
+  geom_point() +
+  scale_colour_manual(values = unname(polychrome())) +
+  theme_bw() +
+  ggeasy::easy_all_text_size(size = 20) +
+  guides(color = guide_legend(override.aes = list(size = 5), ncol = 1)) 
+
+flow_through_pca_res <- flow_through_filtered_count_data %>% t() %>% prcomp(scale. = TRUE) 
+
+flow_through_pca_res$x %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "sample") %>% 
+  mutate(condition = flow_through_design_df$condition) %>%
+  ggplot(aes(x = PC1, y = PC2, color = flow_through_group)) +
+  geom_point() +
+  scale_colour_manual(values = unname(polychrome())) +
+  theme_bw() +
+  ggeasy::easy_all_text_size(size = 20) +
+  guides(color = guide_legend(override.aes = list(size = 5), ncol = 1)) 
+
+flow_through_pca_ruv <- flow_through_set2$normalizedCounts %>% t() %>% prcomp(scale. = TRUE) 
+
+flow_through_pca_ruv$x %>% 
+  as.data.frame() %>% 
+  rownames_to_column(var = "sample") %>% 
+  mutate(condition = flow_through_design_df$condition) %>%
+  ggplot(aes(x = PC1, y = PC2, color = flow_through_group)) +
+  geom_point() +
+  scale_colour_manual(values = unname(polychrome())) +
+  theme_bw() +
+  ggeasy::easy_all_text_size(size = 20) +
+  guides(color = guide_legend(override.aes = list(size = 5), ncol = 1)) 
+```
+
+# Flow through comparisons
+```{r}
+flow_through_comparisons_v <- c(
+  "FVB_x_SJL",
+  "FVB_male_x_SJL_male",
+  "FVB_female_x_SJL_female",
+  "male_x_female",
+  "FVB_male_x_FVB_female",
+  "SJL_male_x_SJL_female"
+  )
+```
+
+# DE analysis
+```{r, message=FALSE, warning=FALSE}
+FDR_threshold <- 0.05
+LFC <- 1
+n_sets <- 6
+
+flow_through_contr_matrix <- makeContrasts(
+  con1 = FVB_male + FVB_female - SJL_male - SJL_female,
+  con2 = FVB_male - SJL_male,
+  con3 = FVB_female - SJL_female,
+  con4 = FVB_male + SJL_male - FVB_female - SJL_female,
+  con5 = FVB_male - FVB_female,
+  con6 = SJL_male - SJL_female,
+  levels = c("FVB_male",
+             "SJL_male",
+             "FVB_female",
+             "SJL_female"
+             )
+)
+
+# edgeR pipeline
+flow_through_fit <- flow_through_filtered_count_data %>%
+# flow_through_fit <- flow_through_set2$normalizedCounts %>%
+  DGEList(lib.size = colSums(flow_through_set2$normalizedCounts), group = flow_through_group) %>%
+  calcNormFactors("TMM") %>%
+  estimateDisp(flow_through_design, robust = TRUE) %>%
+  glmFit(flow_through_design)
+
+rownames(flow_through_fit$counts) <- flow_through_filtered_count_data %>% rownames()
+
+flow_through_lrt1 <- purrr::map(seq_len(n_sets), function(i) glmLRT(flow_through_fit, contrast = flow_through_contr_matrix[, i]))
+
+flow_through_edgeR_results <- purrr::map(seq_along(flow_through_lrt1), function(i) topTags(flow_through_lrt1[[i]], n = nrow(flow_through_lrt1[[i]]), sort.by = "p.value"))
+
+flow_through_edgeR_results <- purrr::map(seq_along(flow_through_edgeR_results), function(i) flow_through_edgeR_results[[i]]$table) %>%
+  purrr::map(rownames_to_column, var = "mgi_symbol") %>%
+  purrr::map(mutate, pi_value = abs(logFC) * (-1) * log10(FDR)) %>%
+  purrr::map(dplyr::arrange, FDR)
+
+flow_through_edgeR_results <- flow_through_edgeR_results %>% 
+  purrr::map(mutate, up_down = dplyr::if_else(condition = logFC > 0, true = "up", false = "down"))
+
+flow_through_edgeR_results <- flow_through_edgeR_results %>% 
+  purrr::map(mutate, DEG_status = dplyr::if_else(condition = logFC > 1 & FDR < 0.05, true = "Up", false = dplyr::if_else(condition = logFC < -1 & FDR < 0.05, true = "Down", false = "Not_DEG"))) 
+
+flow_through_edgeR_results <- flow_through_edgeR_results %>%
+  purrr::map(left_join, mouse_gene_id_dict, by = "mgi_symbol") %>% 
+  purrr::map(dplyr::select, c(ensembl_gene_id, entrezgene_id, mgi_symbol, gene_biotype), everything()) %>% 
+  purrr::set_names(flow_through_comparisons_v)
+
+flow_through_edgeR_results <- flow_through_edgeR_results %>% 
+  purrr::map(mutate_at, .vars = c("logFC", "logCPM", "LR", "pi_value"), .funs = round, digits = 2) %>% 
+  purrr::map(mutate_at, .vars = c("PValue", "FDR"), .funs = formatC, digits = 2, format = "e") 
+
+flow_through_edgeR_results <- flow_through_edgeR_results %>% 
+  purrr::map(mutate, length = end_position - start_position)
+
+flow_through_edgeR_results <- flow_through_edgeR_results %>% 
+  purrr::map(mutate, gene_biotype_1 = gene_biotype) %>% 
+  purrr::map(mutate, gene_biotype_1 = dplyr::if_else(gene_biotype_1 == "protein_coding", true = gene_biotype_1, false = dplyr::if_else(length < 200, true = "miRNA", false = "lncRNA")))
+
+flow_through_edgeR_topDE_1 <- flow_through_edgeR_results %>% purrr::map(dplyr::filter, as.numeric(FDR) < FDR_threshold)
+
+flow_through_edgeR_topDE_2 <- flow_through_edgeR_topDE_1 %>% purrr::map(filter, abs(logFC) >= LFC)
+
+flow_through_edgeR_deg_names <- flow_through_edgeR_topDE_2 %>%
+  purrr::map(dplyr::select, mgi_symbol) %>%
+  purrr::map(as.vector("mgi_symbol"))
+
+flow_through_edgeR_n_degs <- flow_through_edgeR_deg_names %>% purrr::map(length)
+```
+
+# Volcano plot
+```{r}
+create_volcano_plot <- function(df){
+  max_LFC <- df$logFC %>% range() %>% abs() %>% max() %>% ceiling()
+  max_FDR <- df$FDR %>% as.numeric() %>% log10() %>% '*'(-1) %>% max() %>% ceiling()
+  
+  volcano_plot <- df %>%
+  ggplot(aes(x = logFC, y = -log10(as.numeric(FDR)), colour = DEG_status)) +
+  geom_point(alpha = 0.4, size = 1 / 2) +
+  theme_bw() +
+  scale_color_manual(values = c("Down" = "#094FED", "Not_DEG" = "black", "Up" = "red"),
+                     labels = c("Downregulated DEG", "Not significant", "Upregulated DEG")) +
+  xlim(c(-max_LFC, max_LFC)) + ylim(c(0, max_FDR)) +
+  labs(x = "log2 Fold Change", y = "-log10 adjusted p-value") +
+  theme(legend.title = element_blank()) +
+  guides(color = guide_legend(override.aes = list(size = 5))) + # change size of dots in legend
+  theme(legend.position = "bottom") +
+  easy_all_text_size(size = 20)
+  
+  return(volcano_plot)
+}
+
+volcano_plot_FVB_vs_SJL <- flow_through_edgeR_results$FVB_x_SJL %>% create_volcano_plot()
+
+# volcano_plot_FVB_vs_SJL %>%
+  # ggsave(filename = paste0(path_to_data, "volcano_plot_FVB_vs_SJL.png"), device = "png", dpi = 900, width = 10, height = 5)
+
+volcano_plot_FVB_male_x_SJL_male <- flow_through_edgeR_results$FVB_male_x_SJL_male %>% create_volcano_plot()
+
+# volcano_plot_FVB_male_x_FVB_male %>%
+#   ggsave(filename = paste0(path_to_data, "volcano_plot_FVB_male_x_FVB_male.png"), device = "png", dpi = 900, width = 10, height = 5)
+
+volcano_plot_FVB_female_x_SJL_female <- flow_through_edgeR_results$FVB_female_x_SJL_female %>% create_volcano_plot()
+
+# volcano_plot_FVB_female_x_SJL_female %>%
+#   ggsave(filename = paste0(path_to_data, "volcano_plot_FVB_female_x_SJL_female.png"), device = "png", dpi = 900, width = 10, height = 5)
+
+volcano_plot_male_x_female <- flow_through_edgeR_results$male_x_female %>% create_volcano_plot()
+```
+
+```{r}
+gsea_analysis <- function(database = KEGG_2019_Mouse, sorted_genes, p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH") {
+  
+  # Load required packages
+  library(clusterProfiler)
+  library(tidyverse)
+
+  # Read the GMT file into a data frame
+  gmt_df <- database %>% clusterProfiler::read.gmt()
+
+  # Extract the gene sets (terms) from the GMT data frame
+  gmt_list <- gmt_df %>%
+    split(f = .$term) %>%
+    purrr::map("gene")
+
+   # Perform Gene Set Enrichment Analysis (GSEA) using the sorted_genes and the database
+  gsea_result <- clusterProfiler::GSEA(
+    geneList = sorted_genes, 
+    TERM2GENE = gmt_df, 
+    verbose = FALSE, 
+    minGSSize = min_size, 
+    maxGSSize = max_size, 
+    pvalueCutoff = p_value_cutoff, 
+    pAdjustMethod = p_adjust_method
+    ) %>% suppressWarnings()
+
+  # Generate enrichment plots for each gene set and store them in a list
+  gseaplot_results <- purrr::map(gsea_result@result$Description, function(i) {
+    enrichplot::gseaplot2(
+      x = gsea_result,
+      geneSetID = i,
+      title = gsea_result@result$Description[i]
+    )
+  }) %>% purrr::set_names(gsea_result@result$Description)
+
+  # Store the GSEA results and the enrichment plot results in a list
+  results <- list(
+    gsea_results = gsea_result,
+    gseaplot_results = gseaplot_results
+  )
+
+  # Return the results
+  return(results)
+}
+
+gene_list <- flow_through_edgeR_results %>% 
+  purrr::map(function(x) x %>% 
+               arrange(desc(as.numeric(logFC))) %>% 
+               distinct(mgi_symbol, .keep_all = TRUE) %>% 
+               mutate(rank = rank(logFC, ties.method = "random"), 
+                      mgi_symbol = mgi_symbol %>% str_to_upper) %>% 
+               arrange(desc(rank)) %>%
+               dplyr::select(mgi_symbol, logFC)
+  )
+
+ranked_gene_list <- purrr::map(seq_along(gene_list), function(i) {
+  gene_list[[i]]$logFC %>% # Extract column directly
+    as.numeric() %>% # Convert to numeric (if needed)
+    purrr::set_names(gene_list[[i]]$mgi_symbol)
+}) %>%
+  purrr::set_names(names(flow_through_edgeR_results))
+
+
+gsea_KEGG_results_list <- purrr::map(seq_along(ranked_gene_list), function(i) gsea_analysis(database = KEGG_2019_Mouse, sorted_genes = ranked_gene_list[[i]], p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH")) %>% purrr::set_names(names(flow_through_edgeR_results))
+
+gsea_GO_BP_results_list <- purrr::map(seq_along(ranked_gene_list), function(i) gsea_analysis(database = GO_Biological_Process_2023, sorted_genes = ranked_gene_list[[i]], p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH")) %>% purrr::set_names(names(flow_through_edgeR_results))
+
+gsea_C7_results_list <- purrr::map(seq_along(ranked_gene_list), function(i) gsea_analysis(database = C7_immunologic_signatures, sorted_genes = ranked_gene_list[[i]], p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH")) %>% purrr::set_names(names(flow_through_edgeR_results))
+
+gsea_C7_results_list$FVB_x_SJL$gsea_results %>% dotplot()
+```
+
+# gene box plot
+```{r}
+flow_through_degs <- flow_through_edgeR_DE_names$FVB_male_x_SJL_male
+
+gene_table_2_boxplot <- flow_through_filtered_count_data %>% 
+  # edgeR::cpm() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "mgi_symbol") %>% 
+  left_join(mouse_gene_id_dict, by = "mgi_symbol") %>% 
+  dplyr::filter(mgi_symbol %in% flow_through_degs) %>%
+  mutate(gene = paste0(ensembl_gene_id, " (", mgi_symbol, ")" )) %>% 
+  pivot_longer(cols = FVB_female_rep1:FVB_female_rep3, names_to = "sample", values_to = "read_count") %>% 
+  dplyr::filter(sample %>% str_detect(pattern = "female")) %>% 
+  dplyr::mutate(sample = sample %>% str_remove(pattern = "_rep.*")) %>%
+  dplyr::mutate(sample = sample %>% str_remove(pattern = "_female") %>% str_remove(pattern = "_male")) %>%
+  mutate(sample = sample %>% factor()) %>% 
+  dplyr::select(gene, sample, read_count)
+
+gene_title <- gene_table_2_boxplot$gene %>% unique()
+
+gene_boxplot_list <- purrr::map(seq_along(gene_title), function(i){
+  print(i)
+  gene_table_2_boxplot %>% 
+    dplyr::filter(gene == gene_title[i]) %>% 
+    ggplot(aes(x = sample, y = read_count, fill = sample)) + 
+    geom_boxplot() +
+    geom_point() +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, NA)) +
+    scale_fill_brewer(palette = "Dark2") +
+    labs(x = "", y = "Read counts", title = gene_title[i]) +
+    theme_bw() +
+    ggeasy::easy_all_text_size(size = 20)
+})
+
+```
+
+
+
+
+# Oligo comparisons
+```{r}
+oligo_comparisons_v <- c(
+  "FVB_Buffer_x_SJL_Buffer",
+  "SJL_IL1b_x_SJL_Buffer"
+  )
+```
+
+# DE analysis
+```{r, message=FALSE, warning=FALSE}
+FDR_threshold <- 0.05
+LFC <- 1
+n_sets <- 2
+
+oligo_contr_matrix <- makeContrasts(
+  con1 = FVB_Buffer - SJL_Buffer,
+  con2 = SJL_IL1b - SJL_Buffer,
+  levels = c("SJL_Buffer",
+             "FVB_Buffer",
+             "SJL_IL1b"
+             )
+)
+
+# edgeR pipeline
+oligo_fit <- oligo_filtered_count_data %>%
+# oligo_fit <- oligo_set2$normalizedCounts %>%
+  DGEList(lib.size = colSums(oligo_set2$normalizedCounts), group = oligo_group) %>%
+  calcNormFactors("TMM") %>%
+  estimateDisp(oligo_design, robust = TRUE) %>%
+  glmFit(oligo_design)
+
+rownames(oligo_fit$counts) <- oligo_filtered_count_data %>% rownames()
+
+oligo_lrt1 <- purrr::map(seq_len(n_sets), function(i) glmLRT(oligo_fit, contrast = oligo_contr_matrix[, i]))
+
+oligo_edgeR_results <- purrr::map(seq_along(oligo_lrt1), function(i) topTags(oligo_lrt1[[i]], n = nrow(oligo_lrt1[[i]]), sort.by = "p.value"))
+
+oligo_edgeR_results <- purrr::map(seq_along(oligo_edgeR_results), function(i) oligo_edgeR_results[[i]]$table) %>%
+  purrr::map(rownames_to_column, var = "mgi_symbol") %>%
+  purrr::map(mutate, pi_value = abs(logFC) * (-1) * log10(FDR)) %>%
+  purrr::map(dplyr::arrange, FDR)
+
+oligo_edgeR_results <- oligo_edgeR_results %>% 
+  purrr::map(mutate, up_down = dplyr::if_else(condition = logFC > 0, true = "up", false = "down"))
+
+oligo_edgeR_results <- oligo_edgeR_results %>% 
+  purrr::map(mutate, DEG_status = dplyr::if_else(condition = logFC > 1 & FDR < 0.05, true = "Up", false = dplyr::if_else(condition = logFC < -1 & FDR < 0.05, true = "Down", false = "Not_DEG"))) 
+
+oligo_edgeR_results <- oligo_edgeR_results %>%
+  purrr::map(left_join, mouse_gene_id_dict, by = "mgi_symbol") %>% 
+  purrr::map(dplyr::select, c(ensembl_gene_id, entrezgene_id, mgi_symbol, gene_biotype), everything()) %>% 
+  purrr::set_names(oligo_comparisons_v)
+
+oligo_edgeR_results <- oligo_edgeR_results %>% 
+  purrr::map(mutate_at, .vars = c("logFC", "logCPM", "LR", "pi_value"), .funs = round, digits = 2) %>% 
+  purrr::map(mutate_at, .vars = c("PValue", "FDR"), .funs = formatC, digits = 2, format = "e") 
+
+oligo_edgeR_results <- oligo_edgeR_results %>% 
+  purrr::map(mutate, length = end_position - start_position)
+
+oligo_edgeR_results <- oligo_edgeR_results %>% 
+  purrr::map(mutate, gene_biotype_1 = gene_biotype) %>% 
+  purrr::map(mutate, gene_biotype_1 = dplyr::if_else(gene_biotype_1 == "protein_coding", true = gene_biotype_1, false = dplyr::if_else(length < 200, true = "miRNA", false = "lncRNA")))
+
+oligo_edgeR_topDE_1 <- oligo_edgeR_results %>% purrr::map(dplyr::filter, as.numeric(FDR) < FDR_threshold)
+
+oligo_edgeR_topDE_2 <- oligo_edgeR_topDE_1 %>% purrr::map(filter, abs(logFC) >= LFC)
+
+oligo_edgeR_deg_names <- oligo_edgeR_topDE_2 %>%
+  purrr::map(dplyr::select, mgi_symbol) %>%
+  purrr::map(as.vector("mgi_symbol"))
+
+oligo_edgeR_n_degs <- oligo_edgeR_deg_names %>% purrr::map(length)
+```
+
+# Volcano plot
+```{r}
+create_volcano_plot <- function(df){
+  max_LFC <- df$logFC %>% range() %>% abs() %>% max() %>% ceiling()
+  max_FDR <- df$FDR %>% as.numeric() %>% log10() %>% '*'(-1) %>% max() %>% ceiling()
+  
+  volcano_plot <- df %>%
+  ggplot(aes(x = logFC, y = -log10(as.numeric(FDR)), colour = DEG_status)) +
+  geom_point(alpha = 0.4, size = 1 / 2) +
+  theme_bw() +
+  scale_color_manual(values = c("Down" = "#094FED", "Not_DEG" = "black", "Up" = "red"),
+                     labels = c("Downregulated DEG", "Not significant", "Upregulated DEG")) +
+  xlim(c(-max_LFC, max_LFC)) + ylim(c(0, max_FDR)) +
+  labs(x = "log2 Fold Change", y = "-log10 adjusted p-value") +
+  theme(legend.title = element_blank()) +
+  guides(color = guide_legend(override.aes = list(size = 5))) + # change size of dots in legend
+  theme(legend.position = "bottom") +
+  easy_all_text_size(size = 20)
+  
+  return(volcano_plot)
+}
+
+volcano_plot_FVB_Buffer_x_SJL_Buffer <- oligo_edgeR_results$FVB_Buffer_x_SJL_Buffer %>% create_volcano_plot()
+
+# volcano_plot_FVB_Buffer_x_SJL_Buffer %>%
+  # ggsave(filename = paste0(path_to_data, "volcano_plot_FVB_Buffer_x_SJL_Buffer.png"), device = "png", dpi = 900, width = 10, height = 5)
+
+volcano_plot_SJL_IL1b_x_SJL_Buffer <- oligo_edgeR_results$SJL_IL1b_x_SJL_Buffer %>% create_volcano_plot()
+
+# volcano_plot_SJL_IL1b_x_SJL_Buffer %>%
+#   ggsave(filename = paste0(path_to_data, "volcano_plot_SJL_IL1b_x_SJL_Buffer.png"), device = "png", dpi = 900, width = 10, height = 5)
+
+```
+
+
+
+# GSEA
+```{r}
+gsea_analysis <- function(database = KEGG_2019_Mouse, sorted_genes, p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH") {
+  
+  # Load required packages
+  library(clusterProfiler)
+  library(tidyverse)
+
+  # Read the GMT file into a data frame
+  gmt_df <- database %>% clusterProfiler::read.gmt()
+
+  # Extract the gene sets (terms) from the GMT data frame
+  gmt_list <- gmt_df %>%
+    split(f = .$term) %>%
+    purrr::map("gene")
+
+   # Perform Gene Set Enrichment Analysis (GSEA) using the sorted_genes and the database
+  gsea_result <- clusterProfiler::GSEA(
+    geneList = sorted_genes, 
+    TERM2GENE = gmt_df, 
+    verbose = FALSE, 
+    minGSSize = min_size, 
+    maxGSSize = max_size, 
+    pvalueCutoff = p_value_cutoff, 
+    pAdjustMethod = p_adjust_method
+    ) %>% suppressWarnings()
+
+  # Generate enrichment plots for each gene set and store them in a list
+  gseaplot_results <- purrr::map(gsea_result@result$Description, function(i) {
+    enrichplot::gseaplot2(
+      x = gsea_result,
+      geneSetID = i,
+      title = gsea_result@result$Description[i]
+    )
+  }) %>% purrr::set_names(gsea_result@result$Description)
+
+  # Store the GSEA results and the enrichment plot results in a list
+  results <- list(
+    gsea_results = gsea_result,
+    gseaplot_results = gseaplot_results
+  )
+
+  # Return the results
+  return(results)
+}
+
+gene_list <- oligo_edgeR_results %>% 
+  purrr::map(function(x) x %>% 
+               arrange(desc(as.numeric(logFC))) %>% 
+               distinct(mgi_symbol, .keep_all = TRUE) %>% 
+               mutate(rank = rank(logFC, ties.method = "random"), 
+                      mgi_symbol = mgi_symbol %>% str_to_upper) %>% 
+               arrange(desc(rank)) %>%
+               dplyr::select(mgi_symbol, logFC)
+  )
+
+ranked_gene_list <- purrr::map(seq_along(gene_list), function(i) gene_list[[i]] %>% 
+  pull(as.numeric(logFC)) %>%
+  purrr::set_names(gene_list[[i]]$mgi_symbol)) %>%
+  purrr::set_names(names(oligo_edgeR_results))
+
+gsea_KEGG_results_list <- purrr::map(seq_along(ranked_gene_list), function(i) gsea_analysis(database = KEGG_2019_Mouse, sorted_genes = ranked_gene_list[[i]], p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH")) %>% purrr::set_names(names(oligo_edgeR_results))
+
+gsea_KEGG_results_list$SJL_IL1b_x_SJL_Buffer$gsea_results %>% dotplot()
+
+gsea_KEGG_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`TNF signaling pathway`
+gsea_KEGG_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`Cytokine-cytokine receptor interaction`
+gsea_KEGG_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`NOD-like receptor signaling pathway`
+gsea_KEGG_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$Necroptosis
+gsea_KEGG_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`Chemokine signaling pathway`
+
+gsea_GO_BP_results_list <- purrr::map(seq_along(ranked_gene_list), function(i) gsea_analysis(database = GO_Biological_Process_2023, sorted_genes = ranked_gene_list[[i]], p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH")) %>% purrr::set_names(names(oligo_edgeR_results))
+
+gsea_GO_BP_results_list$FVB_Buffer_x_SJL_Buffer$gsea_results %>% dotplot()
+gsea_GO_BP_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`Positive Regulation Of Response To External Stimulus (GO:0032103)`
+gsea_GO_BP_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`Inflammatory Response (GO:0006954)`
+gsea_GO_BP_results_list$FVB_Buffer_x_SJL_Buffer$gseaplot_results$`Astrocyte Activation (GO:0048143)`
+
+```
+
+
