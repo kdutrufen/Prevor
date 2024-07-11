@@ -554,50 +554,6 @@ volcano_plot_male_x_female <- flow_through_edgeR_results$male_x_female %>% creat
 ```
 
 ```{r}
-gsea_analysis <- function(database = KEGG_2019_Mouse, sorted_genes, p_value_cutoff = 0.05, p_adjust_cutoff = 0.05, min_size = 10, max_size = 500, p_adjust_method = "BH") {
-  
-  # Load required packages
-  library(clusterProfiler)
-  library(tidyverse)
-
-  # Read the GMT file into a data frame
-  gmt_df <- database %>% clusterProfiler::read.gmt()
-
-  # Extract the gene sets (terms) from the GMT data frame
-  gmt_list <- gmt_df %>%
-    split(f = .$term) %>%
-    purrr::map("gene")
-
-   # Perform Gene Set Enrichment Analysis (GSEA) using the sorted_genes and the database
-  gsea_result <- clusterProfiler::GSEA(
-    geneList = sorted_genes, 
-    TERM2GENE = gmt_df, 
-    verbose = FALSE, 
-    minGSSize = min_size, 
-    maxGSSize = max_size, 
-    pvalueCutoff = p_value_cutoff, 
-    pAdjustMethod = p_adjust_method
-    ) %>% suppressWarnings()
-
-  # Generate enrichment plots for each gene set and store them in a list
-  gseaplot_results <- purrr::map(gsea_result@result$Description, function(i) {
-    enrichplot::gseaplot2(
-      x = gsea_result,
-      geneSetID = i,
-      title = gsea_result@result$Description[i]
-    )
-  }) %>% purrr::set_names(gsea_result@result$Description)
-
-  # Store the GSEA results and the enrichment plot results in a list
-  results <- list(
-    gsea_results = gsea_result,
-    gseaplot_results = gseaplot_results
-  )
-
-  # Return the results
-  return(results)
-}
-
 gene_list <- flow_through_edgeR_results %>% 
   purrr::map(function(x) x %>% 
                arrange(desc(as.numeric(logFC))) %>% 
