@@ -535,26 +535,6 @@ flow_through_edgeR_n_degs <- flow_through_edgeR_deg_names %>% purrr::map(length)
 
 # Volcano plot
 ```{r}
-create_volcano_plot <- function(df){
-  max_LFC <- df$logFC %>% range() %>% abs() %>% max() %>% ceiling()
-  max_FDR <- df$FDR %>% as.numeric() %>% log10() %>% '*'(-1) %>% max() %>% ceiling()
-  
-  volcano_plot <- df %>%
-  ggplot(aes(x = logFC, y = -log10(as.numeric(FDR)), colour = DEG_status)) +
-  geom_point(alpha = 0.4, size = 1 / 2) +
-  theme_bw() +
-  scale_color_manual(values = c("Down" = "#094FED", "Not_DEG" = "black", "Up" = "red"),
-                     labels = c("Downregulated DEG", "Not significant", "Upregulated DEG")) +
-  xlim(c(-max_LFC, max_LFC)) + ylim(c(0, max_FDR)) +
-  labs(x = "log2 Fold Change", y = "-log10 adjusted p-value") +
-  theme(legend.title = element_blank()) +
-  guides(color = guide_legend(override.aes = list(size = 5))) + # change size of dots in legend
-  theme(legend.position = "bottom") +
-  easy_all_text_size(size = 20)
-  
-  return(volcano_plot)
-}
-
 volcano_plot_FVB_vs_SJL <- flow_through_edgeR_results$FVB_x_SJL %>% create_volcano_plot()
 
 # volcano_plot_FVB_vs_SJL %>%
